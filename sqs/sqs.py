@@ -133,6 +133,7 @@ class SQSPoller:
         logger.debug("Starting poll for {} every {}s".format(
             options.sqs_queue_url, options.poll_period))
         while True:
+            self._deployment = None
             self.poll()
 
 
