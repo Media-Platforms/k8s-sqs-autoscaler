@@ -1,5 +1,5 @@
 ---
-name: Build and Deploy
+name: Run Tests
 on:
   release:
     types: [created]
@@ -14,9 +14,16 @@ on:
       - main
       - master
 jobs:
-  build_and_deploy:
-    name: build_and_deploy
+  run_tests:
+    name: Run tests
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+          - '3.6'
+          - '3.7'
+          - '3.8'
+          - '3.9'
     permissions:
       id-token: write
       pull-requests: read
@@ -26,35 +33,17 @@ jobs:
       - name: Checkout
         id: checkout
         uses: actions/checkout@v2
-      - name: Deep Install
-        id: deep-install
-        env:
-          GITHUB_TOKEN: "${{ secrets.BUILD_TOKEN }}"
-        run: "curl --proto '=https' --tlsv1.2 -sSf https://deep.kubeprod.hearstapps.com/sh | sh -s --"
-      - name: Deep Set Vars
-        id: deep-set-vars
-        run: |
-          deepcli login -r dockerhub
-          deepcli login -r ecr
-          deepcli set-default-actions
-      - name: Cancel Running
-        id: cancel-running
-        if: "github.event_name == 'pull_request'"
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-        run: deepcli cancel-outdated-actions
-      - name: Build Image
-        id: build-image
-        env:
-          BUILD_ARGS: "--build-arg GITHUB_TOKEN"
-          GITHUB_TOKEN: "${{ secrets.BUILD_TOKEN }}"
-        run: |
-          docker pull ${REGISTRY_HOST}/${APP_NAME}:latest || true
-          docker pull ${REGISTRY_HOST}/${APP_NAME}:${GITHUB_SHA_SLICE} || docker build --cache-from ${REGISTRY_HOST}/${APP_NAME}:latest ${BUILD_ARGS} -t ${REGISTRY_HOST}/${APP_NAME}:${GITHUB_SHA_SLICE} .
-      - name: install
-        id: install
-        run: pip install -r requirements.txt
-      - name: script
-        id: script
-        run: pytest
 
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+
+      - name: Install requirements
+        id: install-requirements
+        run: pip install -r requirements.txt
+
+      - name: Run Tests
+        id: run-tests
+        run: pytest
