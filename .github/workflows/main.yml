@@ -1,0 +1,60 @@
+---
+name: Build and Deploy
+on:
+  release:
+    types: [created]
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+  pull_request:
+    branches:
+      - main
+      - master
+jobs:
+  build_and_deploy:
+    name: build_and_deploy
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      pull-requests: read
+      actions: write
+      contents: read
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v2
+      - name: Deep Install
+        id: deep-install
+        env:
+          GITHUB_TOKEN: "${{ secrets.BUILD_TOKEN }}"
+        run: "curl --proto '=https' --tlsv1.2 -sSf https://deep.kubeprod.hearstapps.com/sh | sh -s --"
+      - name: Deep Set Vars
+        id: deep-set-vars
+        run: |
+          deepcli login -r dockerhub
+          deepcli login -r ecr
+          deepcli set-default-actions
+      - name: Cancel Running
+        id: cancel-running
+        if: "github.event_name == 'pull_request'"
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        run: deepcli cancel-outdated-actions
+      - name: Build Image
+        id: build-image
+        env:
+          BUILD_ARGS: "--build-arg GITHUB_TOKEN"
+          GITHUB_TOKEN: "${{ secrets.BUILD_TOKEN }}"
+        run: |
+          docker pull ${REGISTRY_HOST}/${APP_NAME}:latest || true
+          docker pull ${REGISTRY_HOST}/${APP_NAME}:${GITHUB_SHA_SLICE} || docker build --cache-from ${REGISTRY_HOST}/${APP_NAME}:latest ${BUILD_ARGS} -t ${REGISTRY_HOST}/${APP_NAME}:${GITHUB_SHA_SLICE} .
+      - name: install
+        id: install
+        run: pip install -r requirements.txt
+      - name: script
+        id: script
+        run: pytest
+
