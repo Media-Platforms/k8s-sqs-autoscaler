@@ -1,0 +1,49 @@
+---
+name: Run Tests
+on:
+  release:
+    types: [created]
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+  pull_request:
+    branches:
+      - main
+      - master
+jobs:
+  run_tests:
+    name: Run tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+          - '3.6'
+          - '3.7'
+          - '3.8'
+          - '3.9'
+    permissions:
+      id-token: write
+      pull-requests: read
+      actions: write
+      contents: read
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+
+      - name: Install requirements
+        id: install-requirements
+        run: pip install -r requirements.txt
+
+      - name: Run Tests
+        id: run-tests
+        run: pytest
